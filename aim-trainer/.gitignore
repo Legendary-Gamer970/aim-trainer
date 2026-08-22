@@ -1,0 +1,8 @@
+analyze*.mjs
+blackmap.mjs
+checksign.mjs
+column.mjs
+compare.mjs
+findblue.mjs
+node_modules/
+dist/

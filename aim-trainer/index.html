@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>APEX AIM - Competitive FPS Aim Trainer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./src/styles/main.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- 3D Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlay Layer -->
+    <div id="ui-layer">
+      <!-- Main Menu -->
+      <section id="main-menu" class="ui-screen active">
+        <div class="menu-backdrop"></div>
+        <div class="menu-container">
+          <div class="logo-badge">RANGE PROTOCOL // FACILITY V1</div>
+          <h1 class="game-title">APEX<span class="highlight">AIM</span></h1>
+          <p class="game-subtitle">Modern High-Precision Competitive FPS Aim Trainer</p>
+
+          <div class="mode-card mode-card-primary">
+            <div class="mode-header">
+              <span class="mode-tag">FREE TRAINING</span>
+              <span class="mode-duration">UNLIMITED</span>
+            </div>
+            <h3 class="mode-title">TRAINING RANGE</h3>
+            <p class="mode-desc">Practice tracking moving targets with no time limit. Stand on the firing platform, track the patrol dummies, and land headshots for bonus score.</p>
+          </div>
+
+          <div class="mode-card">
+            <div class="mode-header">
+              <span class="mode-tag">FLICK TRAINING</span>
+              <span class="mode-duration" id="menu-duration-badge">60 SECONDS</span>
+            </div>
+            <h3 class="mode-title">FLICK TRAINING</h3>
+            <p class="mode-desc">Hit targets before they reposition. Each target has a fixed shooting window — shoot before it disappears or it teleports away.</p>
+
+            <div class="difficulty-selector">
+              <div class="difficulty-header">
+                <span class="difficulty-title">DIFFICULTY</span>
+                <span class="difficulty-hint">Higher difficulty gives less time to hit each target</span>
+              </div>
+              <div class="button-group" id="flick-difficulty-group">
+                <button class="btn-pill" data-value="easy">EASY</button>
+                <button class="btn-pill active" data-value="normal">NORMAL</button>
+                <button class="btn-pill" data-value="hard">HARD</button>
+                <button class="btn-pill" data-value="extreme">EXTREME</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="menu-actions">
+            <button id="btn-start-range" class="btn btn-primary">
+              <span class="btn-icon">🎯</span> ENTER TRAINING RANGE
+            </button>
+          </div>
+          <div class="menu-actions menu-actions-secondary">
+            <button id="btn-start-flick" class="btn btn-secondary">
+              <span class="btn-icon">⚡</span> START FLICK TRAINING
+            </button>
+            <button id="btn-settings" class="btn btn-secondary">
+              <span class="btn-icon">⚙️</span> SETTINGS
+            </button>
+          </div>
+
+          <div class="controls-hint">
+            <div class="hint-item"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</div>
+            <div class="hint-item"><kbd>MOUSE</kbd> Aim & Look</div>
+            <div class="hint-item"><kbd>LEFT CLICK</kbd> Shoot</div>
+            <div class="hint-item"><kbd>R</kbd> Reload</div>
+            <div class="hint-item"><kbd>ESC</kbd> Pause / Menu</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- In-Game HUD -->
+      <section id="game-hud" class="ui-screen hidden">
+        <!-- Top Stats Bar -->
+        <header class="hud-top-bar">
+          <div class="hud-stat-box">
+            <span class="stat-label">SCORE</span>
+            <span class="stat-value" id="hud-score">0</span>
+          </div>
+
+          <div class="hud-stat-box timer-box" id="hud-timer-box">
+            <span class="stat-label" id="hud-timer-label">TIME REMAINING</span>
+            <div class="timer-display">
+              <span class="stat-value timer-val" id="hud-timer">60.0s</span>
+              <span class="stat-value timer-val mode-label hidden" id="hud-mode-label">FREE PRACTICE</span>
+            </div>
+            <div class="timer-bar-track">
+              <div class="timer-bar-fill" id="hud-timer-bar"></div>
+            </div>
+            <span class="stat-label difficulty-label hidden" id="hud-difficulty">DIFFICULTY: NORMAL</span>
+          </div>
+
+          <div class="hud-stat-box">
+            <span class="stat-label">ACCURACY</span>
+            <span class="stat-value" id="hud-accuracy">100%</span>
+          </div>
+
+          <div class="hud-stat-box">
+            <span class="stat-label">TARGETS</span>
+            <span class="stat-value" id="hud-hits">0</span>
+          </div>
+        </header>
+
+        <!-- Live Reaction Feedback Badge -->
+        <div id="hud-reaction-badge" class="reaction-badge hidden">
+          <span id="hud-reaction-text">245 ms</span>
+        </div>
+
+        <!-- Countdown Overlay -->
+        <div id="hud-countdown" class="hud-countdown hidden">3</div>
+
+        <!-- ADS Optical Scope Overlay (circular optic + vignette + reticle) -->
+        <div id="scope-overlay" aria-hidden="true">
+          <div class="scope-vignette"></div>
+          <div class="scope-ring"></div>
+          <div class="scope-reticle">
+            <span class="scope-reticle-line scope-reticle-line-h"></span>
+            <span class="scope-reticle-line scope-reticle-line-v"></span>
+            <span class="scope-reticle-circle"></span>
+            <span class="scope-reticle-dot"></span>
+          </div>
+        </div>
+
+        <!-- Dynamic Crosshair Overlay -->
+        <div id="crosshair-container">
+          <div id="crosshair-element"></div>
+          <div id="hitmarker" class="hitmarker hidden"></div>
+          <div id="target-window" class="target-window hidden">
+            <div class="target-window-track">
+              <div class="target-window-fill" id="target-window-fill"></div>
+            </div>
+            <span class="target-window-caption">TARGET WINDOW</span>
+          </div>
+        </div>
+
+        <!-- Bottom HUD Info (FPS, Shots, Ammo Counter) -->
+        <footer class="hud-bottom-bar">
+          <div class="hud-bottom-left">
+            <div class="hud-mini-stat">
+              <span>SHOTS: </span><strong id="hud-shots">0</strong>
+            </div>
+            <div class="hud-mini-stat">
+              <span>HEADSHOTS: </span><strong id="hud-headshots" class="highlight-yellow">0</strong>
+            </div>
+            <div class="hud-mini-stat">
+              <span>MISSES: </span><strong id="hud-misses">0</strong>
+            </div>
+            <div class="hud-mini-stat">
+              <span>AVG REACTION: </span><strong id="hud-avg-rt">-- ms</strong>
+            </div>
+            <div class="hud-mini-stat fps-stat">
+              <span>PERF: </span><strong id="hud-fps">-- FPS</strong>
+            </div>
+          </div>
+
+          <!-- First-Person Tactical Ammo Counter -->
+          <div class="hud-bottom-right">
+            <div id="hud-reload-prompt" class="hud-reload-prompt hidden">PRESS [R] TO RELOAD</div>
+            <div id="hud-ammo-container" class="hud-ammo-box">
+              <span class="ammo-icon">⚡</span>
+              <span id="hud-mag-ammo" class="ammo-current">30</span>
+              <span class="ammo-slash">/</span>
+              <span id="hud-reserve-ammo" class="ammo-reserve">120</span>
+            </div>
+          </div>
+        </footer>
+
+        <!-- Click to Start / Resume Overlay when pointer lock is lost during session -->
+        <div id="pause-overlay" class="pause-overlay hidden">
+          <div class="pause-card">
+            <h2>TRAINING PAUSED</h2>
+            <p>Click anywhere to resume training and lock cursor</p>
+            <div class="pause-actions">
+              <button id="btn-resume-training" class="btn btn-primary">RESUME</button>
+              <button id="btn-pause-menu" class="btn btn-secondary">MAIN MENU</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Results Screen -->
+      <section id="results-screen" class="ui-screen hidden">
+        <div class="results-container">
+          <div class="results-header">
+            <span class="results-tag">SESSION COMPLETE</span>
+            <h2 class="results-title">PERFORMANCE SUMMARY</h2>
+          </div>
+
+          <div class="results-main-card">
+            <div class="grade-container">
+              <div class="grade-badge" id="results-grade">S</div>
+              <span class="grade-label" id="results-rank-label">ELITE AIMER</span>
+            </div>
+
+            <div class="score-summary">
+              <span class="score-label">FINAL SCORE</span>
+              <span class="score-value" id="results-final-score">14,250</span>
+            </div>
+          </div>
+
+          <div class="results-stats-grid">
+            <div class="res-stat-card">
+              <span class="res-stat-label">ACCURACY</span>
+              <span class="res-stat-val highlight-green" id="results-accuracy">94.2%</span>
+            </div>
+            <div class="res-stat-card">
+              <span class="res-stat-label">TARGETS HIT</span>
+              <span class="res-stat-val" id="results-targets-hit">58</span>
+            </div>
+            <div class="res-stat-card">
+              <span class="res-stat-label">HEADSHOTS</span>
+              <span class="res-stat-val highlight-yellow" id="results-headshots">24</span>
+            </div>
+            <div class="res-stat-card">
+              <span class="res-stat-label">AVG REACTION</span>
+              <span class="res-stat-val highlight-cyan" id="results-avg-rt">278 ms</span>
+            </div>
+            <div class="res-stat-card">
+              <span class="res-stat-label">BEST REACTION</span>
+              <span class="res-stat-val highlight-yellow" id="results-best-rt">194 ms</span>
+            </div>
+            <div class="res-stat-card">
+              <span class="res-stat-label">TARGETS / MIN</span>
+              <span class="res-stat-val" id="results-tpm">58.0</span>
+            </div>
+          </div>
+
+          <div class="results-actions">
+            <button id="btn-retry" class="btn btn-primary">
+              <span class="btn-icon">🔄</span> PLAY AGAIN
+            </button>
+            <button id="btn-results-menu" class="btn btn-secondary">
+              <span class="btn-icon">🏠</span> MAIN MENU
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Settings Modal -->
+      <section id="settings-modal" class="ui-screen modal hidden">
+        <div class="modal-backdrop" id="settings-backdrop"></div>
+        <div class="settings-container">
+          <div class="settings-header">
+            <h2>SETTINGS</h2>
+            <button id="btn-close-settings" class="btn-icon-close">&times;</button>
+          </div>
+
+          <div class="settings-body">
+            <!-- Mouse Sensitivity -->
+            <div class="setting-group">
+              <div class="setting-info">
+                <label for="setting-sens">Mouse Sensitivity</label>
+                <span class="setting-desc">Adjust camera rotation speed (raw input multiplier)</span>
+              </div>
+              <div class="setting-control-row">
+                <input type="range" id="setting-sens" min="0.1" max="5.0" step="0.05" value="1.0" class="slider" />
+                <span class="setting-value-badge" id="setting-sens-val">1.00</span>
+              </div>
+            </div>
+
+            <!-- Field of View -->
+            <div class="setting-group">
+              <div class="setting-info">
+                <label for="setting-fov">Field of View (FOV)</label>
+                <span class="setting-desc">Camera horizontal/vertical viewing angle in degrees</span>
+              </div>
+              <div class="setting-control-row">
+                <input type="range" id="setting-fov" min="70" max="110" step="1" value="90" class="slider" />
+                <span class="setting-value-badge" id="setting-fov-val">90°</span>
+              </div>
+            </div>
+
+            <!-- Session Duration -->
+            <div class="setting-group">
+              <div class="setting-info">
+                <label>Session Duration</label>
+                <span class="setting-desc">Total FLICK TRAINING session time limit</span>
+              </div>
+              <div class="button-group" id="setting-duration-group">
+                <button class="btn-pill" data-value="15">15s</button>
+                <button class="btn-pill" data-value="30">30s</button>
+                <button class="btn-pill active" data-value="60">60s</button>
+                <button class="btn-pill" data-value="120">120s</button>
+              </div>
+            </div>
+
+            <!-- Crosshair Style -->
+            <div class="setting-group">
+              <div class="setting-info">
+                <label>Crosshair Style</label>
+                <span class="setting-desc">Visual pattern of the aim crosshair</span>
+              </div>
+              <div class="button-group" id="setting-crosshair-style-group">
+                <button class="btn-pill active" data-value="cross">Classic Cross</button>
+                <button class="btn-pill" data-value="dot">Dot</button>
+                <button class="btn-pill" data-value="plus">Plus (+)</button>
+                <button class="btn-pill" data-value="circle-dot">Circle Dot</button>
+              </div>
+            </div>
+
+            <!-- Crosshair Color -->
+            <div class="setting-group">
+              <div class="setting-info">
+                <label>Crosshair Color</label>
+                <span class="setting-desc">Select high-visibility reticle color</span>
+              </div>
+              <div class="color-palette" id="setting-crosshair-colors">
+                <button class="color-circle active" data-color="#00ffff" style="background: #00ffff" title="Cyan"></button>
+                <button class="color-circle" data-color="#00ff66" style="background: #00ff66" title="Neon Green"></button>
+                <button class="color-circle" data-color="#ff0055" style="background: #ff0055" title="Neon Red"></button>
+                <button class="color-circle" data-color="#ffea00" style="background: #ffea00" title="Yellow"></button>
+                <button class="color-circle" data-color="#ffffff" style="background: #ffffff" title="White"></button>
+                <button class="color-circle" data-color="#e056fd" style="background: #e056fd" title="Magenta"></button>
+              </div>
+            </div>
+
+            <!-- Crosshair Size Slider -->
+            <div class="setting-group">
+              <div class="setting-info">
+                <label for="setting-crosshair-size">Crosshair Size</label>
+                <span class="setting-desc">Length of crosshair lines / diameter of dot</span>
+              </div>
+              <div class="setting-control-row">
+                <input type="range" id="setting-crosshair-size" min="6" max="28" step="2" value="14" class="slider" />
+                <span class="setting-value-badge" id="setting-crosshair-size-val">14px</span>
+              </div>
+            </div>
+
+            <!-- Audio Volume -->
+            <div class="setting-group">
+              <div class="setting-info">
+                <label for="setting-volume">Master Sound Volume</label>
+                <span class="setting-desc">Volume of hit sounds, clicks, and countdown</span>
+              </div>
+              <div class="setting-control-row">
+                <input type="range" id="setting-volume" min="0" max="100" step="5" value="70" class="slider" />
+                <span class="setting-value-badge" id="setting-volume-val">70%</span>
+              </div>
+            </div>
+
+            <h3 class="settings-section-title">Weapon</h3>
+
+            <!-- ADS Sensitivity Multiplier -->
+            <div class="setting-group">
+              <div class="setting-info">
+                <label for="setting-ads-sens">ADS Sensitivity</label>
+                <span class="setting-desc">Look speed multiplier while aiming down sights (right-click)</span>
+              </div>
+              <div class="setting-control-row">
+                <input type="range" id="setting-ads-sens" min="0.1" max="1.0" step="0.05" value="0.5" class="slider" />
+                <span class="setting-value-badge" id="setting-ads-sens-val">0.50x</span>
+              </div>
+            </div>
+
+            <!-- ADS Zoom Strength -->
+            <div class="setting-group">
+              <div class="setting-info">
+                <label for="setting-ads-zoom">ADS Zoom (2x scope)</label>
+                <span class="setting-desc">FOV multiplier while scoped (0.5 = true 2x magnification)</span>
+              </div>
+              <div class="setting-control-row">
+                <input type="range" id="setting-ads-zoom" min="0.3" max="0.7" step="0.05" value="0.5" class="slider" />
+                <span class="setting-value-badge" id="setting-ads-zoom-val">0.50x</span>
+              </div>
+            </div>
+
+            <!-- Automatic Fire Rate -->
+            <div class="setting-group">
+              <div class="setting-info">
+                <label for="setting-fire-rate">Auto Fire Rate</label>
+                <span class="setting-desc">Rounds per minute while holding left-click</span>
+              </div>
+              <div class="setting-control-row">
+                <input type="range" id="setting-fire-rate" min="400" max="900" step="25" value="700" class="slider" />
+                <span class="setting-value-badge" id="setting-fire-rate-val">700 RPM</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-footer">
+            <button id="btn-save-settings" class="btn btn-primary">SAVE & CLOSE</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>
