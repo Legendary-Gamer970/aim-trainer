@@ -1279,27 +1279,35 @@ kbd {
   pointer-events: none;
 }
 
-.touch-joystick-zone {
+/* LEFT MOVEMENT ZONE - entire lower-left area for slightly dynamic joystick */
+.touch-move-zone {
   position: absolute;
   left: 0;
   bottom: 0;
   width: 50%;
-  height: 62%;
+  height: 60%;
   pointer-events: auto;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
+  z-index: 2; /* Above look-zone (z-index: 0) */
 }
 
+/* Joystick base - shared styles */
 .touch-joystick-base {
   position: absolute;
-  left: calc(6vmin + env(safe-area-inset-left, 0px));
-  bottom: calc(6vmin + env(safe-area-inset-bottom, 0px));
-  width: clamp(104px, 26vmin, 176px);
-  height: clamp(104px, 26vmin, 176px);
+  width: clamp(110px, 28vmin, 190px);
+  height: clamp(110px, 28vmin, 190px);
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.28);
   background: rgba(10, 14, 22, 0.35);
   touch-action: none;
+  transition: left 0.1s ease-out, top 0.1s ease-out, right 0.1s ease-out, bottom 0.1s ease-out;
+}
+
+/* Left joystick default position (bottom-left) */
+.touch-move-zone .touch-joystick-base {
+  left: calc(6vmin + env(safe-area-inset-left, 0px));
+  bottom: calc(6vmin + env(safe-area-inset-bottom, 0px));
 }
 
 .touch-joystick-base.touch-engaged {
@@ -1318,30 +1326,74 @@ kbd {
   border: 2px solid rgba(0, 255, 255, 0.75);
   box-shadow: 0 0 14px rgba(0, 255, 255, 0.35);
   transform: translate(-50%, -50%);
+  transition: transform 0.05s linear;
 }
 
+/* RIGHT AIM/SHOOT JOYSTICK - fixed position in lower-right */
+.touch-fire-aim-zone {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 50%;
+  height: 60%;
+  pointer-events: none; /* Let touches pass through to look-zone, only base handles shooting */
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  z-index: 2; /* Above look-zone (z-index: 0) */
+}
+
+.touch-fire-aim-base {
+  position: absolute;
+  right: calc(6vmin + env(safe-area-inset-right, 0px));
+  bottom: calc(6vmin + env(safe-area-inset-bottom, 0px));
+  width: clamp(110px, 28vmin, 190px);
+  height: clamp(110px, 28vmin, 190px);
+  border-radius: 50%;
+  border: 2px solid rgba(255, 70, 85, 0.5);
+  background: rgba(10, 14, 22, 0.4);
+  pointer-events: auto; /* Only the visual joystick base receives pointer events */
+  touch-action: none;
+}
+
+.touch-fire-aim-base.touch-btn-pressed {
+  border-color: rgba(255, 70, 85, 0.9);
+  background: rgba(255, 70, 85, 0.3);
+  box-shadow: 0 0 20px rgba(255, 70, 85, 0.4);
+}
+
+.touch-fire-aim-knob {
+  background: rgba(255, 70, 85, 0.4);
+  border-color: rgba(255, 70, 85, 0.9);
+  box-shadow: 0 0 14px rgba(255, 70, 85, 0.4);
+}
+
+/* FREE-LOOK ZONE - rest of screen for camera control without shooting */
 .touch-look-zone {
   position: absolute;
-  top: 0;
-  right: 0;
-  width: 50%;
-  height: 100%;
+  inset: 0;
   pointer-events: auto;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
+  z-index: 0; /* Behind the joystick zones */
 }
 
+/* ACTION BUTTONS - right side above fire joystick */
 .touch-action-cluster {
   position: absolute;
   right: calc(3vmin + env(safe-area-inset-right, 0px));
-  bottom: calc(3vmin + env(safe-area-inset-bottom, 0px));
-  width: clamp(170px, 42vmin, 280px);
-  height: clamp(150px, 38vmin, 250px);
+  bottom: calc(140px + 6vmin + env(safe-area-inset-bottom, 0px));
+  width: clamp(150px, 38vmin, 250px);
+  height: clamp(120px, 30vmin, 200px);
   pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 8px;
+  z-index: 10;
 }
 
 .touch-btn {
-  position: absolute;
   pointer-events: auto;
   touch-action: none;
   border-radius: 50%;
@@ -1362,34 +1414,19 @@ kbd {
   border-color: rgba(0, 255, 255, 0.8);
 }
 
-.touch-btn-fire {
-  right: 0;
-  bottom: 0;
-  width: clamp(88px, 23vmin, 150px);
-  height: clamp(88px, 23vmin, 150px);
-  font-size: clamp(13px, 3.4vmin, 21px);
-  border-color: rgba(0, 255, 255, 0.55);
-}
-
 .touch-btn-reload {
-  right: 14%;
-  top: 4%;
-  width: clamp(62px, 16vmin, 104px);
-  height: clamp(62px, 16vmin, 104px);
+  width: clamp(60px, 15vmin, 100px);
+  height: clamp(60px, 15vmin, 100px);
   font-size: clamp(10px, 2.4vmin, 15px);
 }
 
 .touch-btn-ads {
-  left: 2%;
-  bottom: 6%;
   width: clamp(56px, 14vmin, 92px);
   height: clamp(56px, 14vmin, 92px);
   font-size: clamp(11px, 2.7vmin, 17px);
 }
 
 .touch-btn-pause {
-  left: 34%;
-  bottom: 46%;
   width: clamp(44px, 11vmin, 68px);
   height: clamp(44px, 11vmin, 68px);
   font-size: clamp(12px, 3vmin, 18px);
@@ -1410,4 +1447,48 @@ kbd {
   .hud-bottom-bar {
     padding: 10px 14px;
   }
+
+  .touch-action-cluster {
+    bottom: calc(120px + 6vmin + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Fullscreen button for mobile */
+.touch-fullscreen-btn {
+  position: absolute;
+  top: calc(3vmin + env(safe-area-inset-top, 0px));
+  right: calc(3vmin + env(safe-area-inset-right, 0px));
+  width: clamp(44px, 10vmin, 60px);
+  height: clamp(44px, 10vmin, 60px);
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  background: rgba(10, 14, 22, 0.35);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: clamp(14px, 3vmin, 20px);
+  font-weight: 700;
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.touch-fullscreen-btn.touch-btn-pressed {
+  background: rgba(0, 255, 255, 0.28);
+  border-color: rgba(0, 255, 255, 0.8);
+}
+
+/* Hide fullscreen button on desktop or when already fullscreen */
+@media (pointer: fine) {
+  .touch-fullscreen-btn {
+    display: none;
+  }
+}
+
+:fullscreen .touch-fullscreen-btn,
+:-webkit-full-screen .touch-fullscreen-btn {
+  display: none;
 }

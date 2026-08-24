@@ -5,7 +5,7 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
-    allowedHosts: ['transport-first-equilibrium-enabling.trycloudflare.com'],
+    allowedHosts: ['bizarre-mrna-workshops-coaching.trycloudflare.com'],
   },
   build: {
     target: 'esnext',

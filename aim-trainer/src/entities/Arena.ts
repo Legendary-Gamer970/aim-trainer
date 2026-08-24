@@ -168,7 +168,7 @@ export class Arena {
     const platformX = (pxMin + pxMax) / 2;
     const platformZ = (pzFront + pzBack) / 2;
 
-    // Raised concrete firing pad
+    // Raised concrete firing pad (height 0.15, resting on floor y=0..0.15)
     const platformGeo = new THREE.BoxGeometry(platformW, pHeight, platformD);
     const platform = new THREE.Mesh(platformGeo, concreteMat);
     platform.position.set(platformX, pHeight / 2, platformZ);
@@ -179,7 +179,7 @@ export class Arena {
     const firingLineGeo = new THREE.PlaneGeometry(platformW, 0.34);
     const firingLine = new THREE.Mesh(firingLineGeo, new THREE.MeshBasicMaterial({ map: hazardTexture }));
     firingLine.rotation.x = -Math.PI / 2;
-    firingLine.position.set(platformX, pHeight + 0.02, pzFront + 0.32);
+    firingLine.position.set(platformX, pHeight + 0.005, pzFront + 0.32);
     add(firingLine);
 
     // Caution blocks at the platform back edge
@@ -191,25 +191,31 @@ export class Arena {
       add(block);
     }
 
-    // Firing counter bench: low wooden bench, no giant blue wall
+    // Firing counter bench: wooden tabletop with front skirt and concrete legs
     const benchW = BOOTH_BENCH.maxX - BOOTH_BENCH.minX;
     const benchTopGeo = new THREE.BoxGeometry(benchW, 0.07, 0.5);
     const benchTop = new THREE.Mesh(benchTopGeo, woodMat);
     benchTop.position.set(platformX, 0.72, pzFront - 0.18);
     add(benchTop);
-    const benchFrontGeo = new THREE.BoxGeometry(benchW, 0.52, 0.08);
+
+    // Bench front panel: rests flush on platform (y=0.15) and joins bottom of tabletop (y=0.685)
+    const benchFrontGeo = new THREE.BoxGeometry(benchW, 0.54, 0.08);
     const benchFront = new THREE.Mesh(benchFrontGeo, graphiteMat);
-    benchFront.position.set(platformX, 0.43, pzFront + 0.07);
+    benchFront.position.set(platformX, 0.42, pzFront + 0.07);
     add(benchFront);
+
+    // Bench legs: resting on hall floor (y=0..0.72)
     for (const side of [-1, 1]) {
       const legGeo = new THREE.BoxGeometry(0.12, 0.72, 0.5);
       const leg = new THREE.Mesh(legGeo, concreteDarkMat);
       leg.position.set(platformX + side * (benchW / 2 - 0.15), 0.36, pzFront - 0.18);
       add(leg);
     }
-    const benchStripeGeo = new THREE.BoxGeometry(benchW, 0.05, 0.52);
+
+    // Bench accent trim (clean inlay along the front edge)
+    const benchStripeGeo = new THREE.BoxGeometry(benchW, 0.02, 0.08);
     const benchStripe = new THREE.Mesh(benchStripeGeo, orangeMat);
-    benchStripe.position.set(platformX, 0.75, pzFront - 0.18);
+    benchStripe.position.set(platformX, 0.756, pzFront + 0.04);
     add(benchStripe);
 
     // Shooting booth: half-height side walls flanking the firing position
@@ -233,7 +239,7 @@ export class Arena {
       add(panel);
       const topRailGeo = new THREE.BoxGeometry(0.16, 0.1, boothWallLen);
       const topRail = new THREE.Mesh(topRailGeo, woodMat);
-      topRail.position.set(xPos, 1.13, (BOOTH.wallZFront + BOOTH.wallZBack) / 2);
+      topRail.position.set(xPos, 1.09, (BOOTH.wallZFront + BOOTH.wallZBack) / 2);
       add(topRail);
     }
 
@@ -252,7 +258,7 @@ export class Arena {
     const barGap = (BOOTH.grillMaxX - BOOTH.grillMinX) / (barCount - 1);
     for (let i = 0; i < barCount; i++) {
       barM.compose(
-        new THREE.Vector3(BOOTH.grillMinX + i * barGap, 0.53, grillCenterZ),
+        new THREE.Vector3(BOOTH.grillMinX + i * barGap, 0.54, grillCenterZ),
         new THREE.Quaternion(),
         new THREE.Vector3(1, 1, 1)
       );
@@ -284,22 +290,27 @@ export class Arena {
     lane.rotation.y = Math.PI / 2;
     add(lane);
 
-    // Side safety rails (low graphite posts + single rail)
+    // Side safety rails (grounded graphite posts + top metal rail + side warning plate)
     for (const side of [-1, 1]) {
       const xPos = (side > 0 ? pxMax : pxMin) + side * 0.12;
       const railGeo = new THREE.BoxGeometry(0.09, 0.09, platformD + 0.8);
       const rail = new THREE.Mesh(railGeo, metalMat);
-      rail.position.set(xPos, 1.02, platformZ);
+      // Rail sits firmly on top of posts: y = 0.15 (platform) + 1.02 (posts) + 0.045 = 1.215
+      rail.position.set(xPos, 1.215, platformZ);
       add(rail);
+
       for (let i = 0; i < 4; i++) {
         const postGeo = new THREE.BoxGeometry(0.09, 1.02, 0.09);
         const post = new THREE.Mesh(postGeo, graphiteMat);
-        post.position.set(xPos, 0.51, pzFront + 0.35 + i * (platformD / 3.4));
+        // Posts rest on platform top (y = 0.15..1.17)
+        post.position.set(xPos, 0.15 + 0.51, pzFront + 0.35 + i * (platformD / 3.4));
         add(post);
       }
-      const plateGeo = new THREE.BoxGeometry(0.07, 0.34, 1.2);
+
+      // Safety warning plate mounted flush to the outer face of the posts
+      const plateGeo = new THREE.BoxGeometry(0.04, 0.28, 1.2);
       const plate = new THREE.Mesh(plateGeo, orangeMat);
-      plate.position.set(xPos, 1.35, platformZ + 0.1);
+      plate.position.set(xPos + side * 0.06, 0.15 + 0.51, platformZ);
       add(plate);
     }
   }
@@ -320,18 +331,20 @@ export class Arena {
     const curb = new THREE.Mesh(curbGeo, concreteMat);
     curb.position.set(0, 0.175, -31.4);
     add(curb);
+
     const hazardTexture = this.createHazardTexture();
     const curbStripeGeo = new THREE.PlaneGeometry(34, 0.22);
     const curbStripe = new THREE.Mesh(curbStripeGeo, new THREE.MeshBasicMaterial({ map: hazardTexture }));
     curbStripe.rotation.x = -Math.PI / 2;
-    curbStripe.position.set(0, 0.36, -31.4);
+    curbStripe.position.set(0, 0.355, -31.4);
     add(curbStripe);
 
-    // Target holders on the curb
+    // Target holders firmly sitting on top of the concrete curb
     for (const x of [-8, -4, 0, 4, 8]) {
       const holderGeo = new THREE.BoxGeometry(0.32, 0.55, 0.16);
       const holder = new THREE.Mesh(holderGeo, graphiteMat);
-      holder.position.set(x, 0.62, -31.0);
+      // Curb top is y=0.35, holder height is 0.55 -> center y = 0.35 + 0.275 = 0.625
+      holder.position.set(x, 0.625, -31.4);
       add(holder);
     }
 
@@ -341,46 +354,64 @@ export class Arena {
     band.position.set(0, 1.6, -32.97);
     add(band);
 
-    // Bullseye plaques high on the back wall (above bot head space)
+    // Bullseye plaques on the back wall (cleanly positioned below the main signboard)
     const plaqueTexture = this.createBullseyeTexture();
-    for (const x of [-6, 0, 6]) {
-      const plaqueGeo = new THREE.PlaneGeometry(1.6, 1.6);
+    for (const x of [-7, 0, 7]) {
+      const plaqueGeo = new THREE.PlaneGeometry(1.4, 1.4);
       const plaque = new THREE.Mesh(plaqueGeo, new THREE.MeshBasicMaterial({ map: plaqueTexture }));
-      plaque.position.set(x, 5.7, -32.96);
+      plaque.position.set(x, 4.8, -32.96);
       add(plaque);
     }
 
-    // Facility signboard: backing board + metal frame, mounted on the back wall
-    const signTexture = this.createLabelTexture('APEX AIM RANGE', 'SHOOTING FACILITY', '#f4efe4', '#3c4046');
-    const signBoardGeo = new THREE.BoxGeometry(9.6, 3.0, 0.1);
+    // Facility signboard: backing board + metal frame, mounted high on the back wall
+    const signTexture = this.createFacilitySignTexture();
+    const signBoardGeo = new THREE.BoxGeometry(9.6, 2.8, 0.1);
     const signBoard = new THREE.Mesh(signBoardGeo, woodMat);
-    signBoard.position.set(0, 7.6, -32.9);
+    signBoard.position.set(0, 7.8, -32.9);
     add(signBoard);
+
+    // Frame strips surrounding the signboard perfectly
     const frameStrips: Array<[number, number, number, number]> = [
-      [0, 9.17, 9.8, 0.14], [0, 6.03, 9.8, 0.14], [-4.8, 7.6, 0.14, 3.28], [4.8, 7.6, 0.14, 3.28],
+      [0, 9.20, 9.6, 0.12],   // Top frame strip
+      [0, 6.40, 9.6, 0.12],   // Bottom frame strip
+      [-4.75, 7.8, 0.12, 2.92], // Left frame strip
+      [4.75, 7.8, 0.12, 2.92],  // Right frame strip
     ];
     for (const [x, y, w, h] of frameStrips) {
       const stripGeo = new THREE.BoxGeometry(w, h, 0.16);
       const strip = new THREE.Mesh(stripGeo, graphiteMat);
-      strip.position.set(x, y, -32.9);
+      strip.position.set(x, y, -32.88);
       add(strip);
     }
-    const signGeo = new THREE.PlaneGeometry(9, 2.6);
+
+    // High-resolution printed signboard face (y = 6.6..9.0)
+    const signGeo = new THREE.PlaneGeometry(9.2, 2.4);
     const sign = new THREE.Mesh(signGeo, new THREE.MeshBasicMaterial({ map: signTexture }));
-    sign.position.set(0, 7.6, -32.84);
+    sign.position.set(0, 7.8, -32.82);
     add(sign);
+
+    // Wall mounting support brackets under the bottom frame
     for (const side of [-1, 1]) {
-      const bracketGeo = new THREE.BoxGeometry(0.14, 0.5, 0.25);
+      const bracketGeo = new THREE.BoxGeometry(0.14, 0.45, 0.22);
       const bracket = new THREE.Mesh(bracketGeo, graphiteMat);
-      bracket.position.set(side * 4.6, 5.85, -32.97);
+      bracket.position.set(side * 4.4, 6.15, -32.95);
       add(bracket);
     }
 
-    const lightMat = new THREE.MeshBasicMaterial({ color: 0xff4d3d });
-    const lightGeo = new THREE.BoxGeometry(1.2, 0.3, 0.12);
-    const light = new THREE.Mesh(lightGeo, lightMat);
-    light.position.set(0, 6.35, -32.9);
-    add(light);
+    // Over-sign spotlight bar mounted ABOVE the sign (y = 9.45)
+    const lightBarGeo = new THREE.BoxGeometry(3.6, 0.12, 0.20);
+    const lightBar = new THREE.Mesh(lightBarGeo, graphiteMat);
+    lightBar.position.set(0, 9.45, -32.85);
+    add(lightBar);
+
+    // Spotlight fixtures shining down on the board
+    const spotFixtureGeo = new THREE.BoxGeometry(0.6, 0.16, 0.24);
+    const spotFixtureMat = new THREE.MeshBasicMaterial({ color: 0xffe9c4 });
+    for (const sx of [-1.2, 1.2]) {
+      const spot = new THREE.Mesh(spotFixtureGeo, spotFixtureMat);
+      spot.position.set(sx, 9.40, -32.82);
+      add(spot);
+    }
   }
 
   private buildSidePlatforms(): void {
@@ -394,48 +425,110 @@ export class Arena {
       return mesh;
     };
 
+    // Build solid, grounded elevated observation walkways on both side walls
     for (const side of [-1, 1]) {
-      const xPos = side * 14.2;
-      // Deck
-      const deckGeo = new THREE.BoxGeometry(3.4, 0.18, 15);
+      const deckWidth = 2.6;
+      const deckLength = 16.0;
+      const deckHeight = 2.20; // Height of deck bottom above floor
+      const deckThickness = 0.20;
+      const deckCenterX = side * 15.35; // Extends from x = ±14.05 to ±16.65 (flush with wall kick)
+      const deckCenterZ = -12.0;       // Spans z = -20.0 to -4.0
+
+      // 1. Solid Main Catwalk Deck (y = 2.20..2.40)
+      const deckGeo = new THREE.BoxGeometry(deckWidth, deckThickness, deckLength);
       const deck = new THREE.Mesh(deckGeo, woodMat);
-      deck.position.set(xPos, 2.55, -12.5);
+      deck.position.set(deckCenterX, deckHeight + deckThickness / 2, deckCenterZ);
       add(deck);
-      // Support posts
-      for (const dz of [-6.5, 0, 6.5]) {
-        for (const dx of [-1.4, 1.4]) {
-          const postGeo = new THREE.BoxGeometry(0.18, 2.55, 0.18);
-          const post = new THREE.Mesh(postGeo, woodDarkMat);
-          post.position.set(xPos + dx, 1.27, -12.5 + dz);
-          add(post);
+
+      // 2. Heavy Support Columns (5 pairs along Z, resting on floor y=0..2.20)
+      const colZPositions = [-20.0, -16.0, -12.0, -8.0, -4.0];
+      const colXPositions = [deckCenterX - side * 1.15, deckCenterX + side * 1.15];
+
+      for (const cz of colZPositions) {
+        for (const cx of colXPositions) {
+          const colGeo = new THREE.BoxGeometry(0.20, deckHeight, 0.20);
+          const col = new THREE.Mesh(colGeo, woodDarkMat);
+          col.position.set(cx, deckHeight / 2, cz);
+          add(col);
         }
+
+        // Cross header beam under deck
+        const headerGeo = new THREE.BoxGeometry(deckWidth, 0.18, 0.20);
+        const header = new THREE.Mesh(headerGeo, woodDarkMat);
+        header.position.set(deckCenterX, deckHeight - 0.09, cz);
+        add(header);
       }
-      // Edge trim + railing
-      const trimGeo = new THREE.BoxGeometry(3.4, 0.1, 0.14);
-      for (const dz of [-7.5, 7.5]) {
-        const trim = new THREE.Mesh(trimGeo, woodDarkMat);
-        trim.position.set(xPos, 2.66, -12.5 + dz);
-        add(trim);
+
+      // 3. Continuous Industrial Safety Railing along the full inner edge (z = -20 to -4)
+      const railX = deckCenterX - side * (deckWidth / 2 - 0.05); // Inner facing edge
+
+      // Top handrail (y = 2.40 + 1.00 = 3.40)
+      const topRailGeo = new THREE.BoxGeometry(0.08, 0.08, deckLength);
+      const topRail = new THREE.Mesh(topRailGeo, metalMat);
+      topRail.position.set(railX, 3.40, deckCenterZ);
+      add(topRail);
+
+      // Mid guardrail (y = 2.40 + 0.50 = 2.90)
+      const midRailGeo = new THREE.BoxGeometry(0.06, 0.05, deckLength);
+      const midRail = new THREE.Mesh(midRailGeo, metalMat);
+      midRail.position.set(railX, 2.90, deckCenterZ);
+      add(midRail);
+
+      // Base kickboard along edge (y = 2.40 + 0.10 = 2.50)
+      const kickboardGeo = new THREE.BoxGeometry(0.06, 0.20, deckLength);
+      const kickboard = new THREE.Mesh(kickboardGeo, woodDarkMat);
+      kickboard.position.set(railX, 2.50, deckCenterZ);
+      add(kickboard);
+
+      // Vertical baluster posts every 2m
+      for (let z = -20.0; z <= -4.0; z += 2.0) {
+        const postGeo = new THREE.BoxGeometry(0.08, 1.04, 0.08);
+        const post = new THREE.Mesh(postGeo, graphiteMat);
+        post.position.set(railX, 2.92, z);
+        add(post);
       }
-      const railGeo = new THREE.BoxGeometry(3.4, 0.08, 0.08);
-      for (const dz of [-7.5, 7.5]) {
-        const rail = new THREE.Mesh(railGeo, metalMat);
-        rail.position.set(xPos, 3.15, -12.5 + dz);
-        add(rail);
-        for (const dx of [-1.5, 0, 1.5]) {
-          const postGeo = new THREE.BoxGeometry(0.08, 0.55, 0.08);
-          const post = new THREE.Mesh(postGeo, graphiteMat);
-          post.position.set(xPos + dx, 2.88, -12.5 + dz);
-          add(post);
-        }
-      }
-      // Stairs at the mid end of the deck
-      for (let s = 0; s < 3; s++) {
-        const stepGeo = new THREE.BoxGeometry(2.2, 0.24, 0.4);
+
+      // End railings across X at z = -20.0 (far end)
+      const endRailGeo = new THREE.BoxGeometry(deckWidth, 0.08, 0.08);
+      const endTopRail = new THREE.Mesh(endRailGeo, metalMat);
+      endTopRail.position.set(deckCenterX, 3.40, -20.0);
+      add(endTopRail);
+
+      const endMidRail = new THREE.Mesh(new THREE.BoxGeometry(deckWidth, 0.05, 0.06), metalMat);
+      endMidRail.position.set(deckCenterX, 2.90, -20.0);
+      add(endMidRail);
+
+      // 4. Grounded Access Stairs at the near end (z = -4.0 to -0.4)
+      // Realistic 8-step flight connecting platform deck (y=2.40) to floor (y=0)
+      const numSteps = 8;
+      const stepRise = 2.40 / numSteps; // 0.30m per step
+      const stepRun = 0.45;            // 0.45m tread depth
+      const stairWidth = 1.8;
+
+      for (let s = 0; s < numSteps; s++) {
+        const stepY = (s + 0.5) * stepRise; // Centers: 0.15, 0.45, ...
+        const stepZ = -4.0 + (numSteps - 1 - s) * stepRun + stepRun / 2;
+        const stepGeo = new THREE.BoxGeometry(stairWidth, stepRise, stepRun);
         const step = new THREE.Mesh(stepGeo, woodDarkMat);
-        step.position.set(xPos, 0.12 + s * 0.24 + 0.12, -12.5 - 6.5 + s * 0.4);
+        step.position.set(deckCenterX, stepY, stepZ);
         add(step);
       }
+
+      // Stair stringer beams and outer handrail
+      const stairLength = Math.hypot(numSteps * stepRun, 2.40);
+      const stairAngle = Math.atan2(2.40, numSteps * stepRun);
+
+      const stringerGeo = new THREE.BoxGeometry(0.10, 0.22, stairLength);
+      const stringerInner = new THREE.Mesh(stringerGeo, graphiteMat);
+      stringerInner.position.set(railX, 1.20, -4.0 + (numSteps * stepRun) / 2);
+      stringerInner.rotation.x = stairAngle;
+      add(stringerInner);
+
+      const stairRailGeo = new THREE.BoxGeometry(0.06, 0.06, stairLength);
+      const stairRail = new THREE.Mesh(stairRailGeo, metalMat);
+      stairRail.position.set(railX, 2.20, -4.0 + (numSteps * stepRun) / 2);
+      stairRail.rotation.x = stairAngle;
+      add(stairRail);
     }
   }
 
@@ -471,14 +564,17 @@ export class Arena {
       handle.position.set(side * 0.42, 1.15, DOOR.z + DOOR.thickness / 2 + 0.02);
       add(handle);
     }
+
     const headerGeo = new THREE.BoxGeometry(DOOR.halfOpening * 2 + 0.5, 0.32, 0.34);
     const header = new THREE.Mesh(headerGeo, woodDarkMat);
     header.position.set(0, DOOR.leafHeight + 0.16, DOOR.z);
     add(header);
+
     const thresholdGeo = new THREE.BoxGeometry(DOOR.halfOpening * 2 + 0.5, 0.08, 0.5);
     const threshold = new THREE.Mesh(thresholdGeo, graphiteMat);
     threshold.position.set(0, 0.04, DOOR.z + 0.1);
     add(threshold);
+
     const exitTexture = this.createLabelTexture('EXIT', '', '#f4efe4', '#8a2f2a', true);
     const exitGeo = new THREE.PlaneGeometry(0.9, 0.35);
     const exit = new THREE.Mesh(exitGeo, new THREE.MeshBasicMaterial({ map: exitTexture }));
@@ -486,12 +582,26 @@ export class Arena {
     exit.position.set(0, DOOR.leafHeight + 0.75, DOOR.z - 0.1);
     add(exit);
 
-    // Storage: crates + barrels along the rear corners
+    // ============================================================
+    // Storage: Perfectly grounded wooden crates in rear corners
+    // Crate base size: 0.62m. Y position = (0.62 * scale) / 2 for floor crates
+    // ============================================================
     const cratePositions: Array<[number, number, number, number]> = [
-      [-8.5, 0.3, 5.2, 1.0], [-9.5, 0.3, 4.6, 0.9], [-8.9, 0.95, 4.9, 0.8],
-      [-7.6, 0.3, 3.8, 0.9], [8.6, 0.3, 5.0, 1.0], [9.4, 0.3, 4.4, 0.9],
-      [8.9, 0.95, 4.7, 0.8], [7.7, 0.3, 3.9, 0.9],
+      // Left rear corner stack (x ~ -9.5..-11.5, z ~ 4.2..5.4)
+      [-9.5, 0.31, 5.0, 1.0],      // Base crate 1 (y=0..0.62)
+      [-10.3, 0.31, 4.4, 1.0],     // Base crate 2 (y=0..0.62)
+      [-11.0, 0.279, 5.1, 0.9],    // Base crate 3 (y=0..0.558)
+      [-9.5, 0.868, 5.0, 0.8],     // Stacked crate on Crate 1 (y=0.62..1.116)
+      [-10.3, 0.868, 4.4, 0.8],    // Stacked crate on Crate 2 (y=0.62..1.116)
+
+      // Right rear corner stack (x ~ 9.5..11.5, z ~ 4.2..5.4)
+      [9.5, 0.31, 5.0, 1.0],       // Base crate 4 (y=0..0.62)
+      [10.3, 0.31, 4.4, 1.0],      // Base crate 5 (y=0..0.62)
+      [11.0, 0.279, 5.1, 0.9],     // Base crate 6 (y=0..0.558)
+      [9.5, 0.868, 5.0, 0.8],      // Stacked crate on Crate 4 (y=0.62..1.116)
+      [10.3, 0.868, 4.4, 0.8],     // Stacked crate on Crate 5 (y=0.62..1.116)
     ];
+
     const crateGeo = new THREE.BoxGeometry(0.62, 0.62, 0.62);
     const crates = new THREE.InstancedMesh(crateGeo, woodMat, cratePositions.length);
     const crateM = new THREE.Matrix4();
@@ -502,10 +612,14 @@ export class Arena {
     crates.instanceMatrix.needsUpdate = true;
     add(crates);
 
+    // ============================================================
+    // Storage: Industrial barrels sitting flat on floor (height 1.0, center y = 0.5)
+    // ============================================================
     const barrelPositions: Array<[number, number, number]> = [
-      [-11, 0.5, 4.8], [-11.8, 0.5, 4.2], [11.2, 0.5, 4.6], [12, 0.5, 4.0],
+      [-11.8, 0.50, 4.2], [-12.5, 0.50, 4.9],
+      [11.8, 0.50, 4.2], [12.5, 0.50, 4.9],
     ];
-    const barrelGeo = new THREE.CylinderGeometry(0.36, 0.36, 1.0, 10);
+    const barrelGeo = new THREE.CylinderGeometry(0.36, 0.36, 1.0, 12);
     const barrels = new THREE.InstancedMesh(barrelGeo, orangeMat, barrelPositions.length);
     const barrelM = new THREE.Matrix4();
     barrelPositions.forEach(([x, y, z], i) => {
@@ -515,33 +629,75 @@ export class Arena {
     barrels.instanceMatrix.needsUpdate = true;
     add(barrels);
 
-    // Target transport cart
-    const cartBaseGeo = new THREE.BoxGeometry(1.5, 0.45, 0.9);
-    const cartBase = new THREE.Mesh(cartBaseGeo, graphiteMat);
-    cartBase.position.set(-12.5, 0.45, 2.6);
-    add(cartBase);
-    const cartTrayGeo = new THREE.BoxGeometry(1.7, 0.07, 1.1);
-    const cartTray = new THREE.Mesh(cartTrayGeo, woodMat);
-    cartTray.position.set(-12.5, 0.75, 2.6);
-    add(cartTray);
-    for (const side of [-1, 1]) {
-      const wheelGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.08, 10);
-      wheelGeo.rotateZ(Math.PI / 2);
-      const wheel = new THREE.Mesh(wheelGeo, metalMat);
-      wheel.position.set(-12.5 + side * 0.6, 0.16, 2.3);
-      add(wheel);
+    // ============================================================
+    // Target transport cart (grounded with 4 wheels + chassis + tray + handle)
+    // ============================================================
+    const cartX = -12.5;
+    const cartZ = 2.6;
+    const wheelRadius = 0.12;
+
+    // 4 metal caster wheels resting on floor y=0..0.24
+    for (const dx of [-0.55, 0.55]) {
+      for (const dz of [-0.32, 0.32]) {
+        const wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, 0.08, 12);
+        wheelGeo.rotateZ(Math.PI / 2);
+        const wheel = new THREE.Mesh(wheelGeo, metalMat);
+        wheel.position.set(cartX + dx, wheelRadius, cartZ + dz);
+        add(wheel);
+      }
     }
 
-    // Range safety rules board near the firing line
+    // Heavy graphite chassis frame (y = 0.12..0.36)
+    const cartBaseGeo = new THREE.BoxGeometry(1.40, 0.24, 0.90);
+    const cartBase = new THREE.Mesh(cartBaseGeo, graphiteMat);
+    cartBase.position.set(cartX, wheelRadius + 0.12, cartZ);
+    add(cartBase);
+
+    // Wooden flatbed tray resting flush on chassis (y = 0.36..0.43)
+    const cartTrayGeo = new THREE.BoxGeometry(1.55, 0.07, 1.05);
+    const cartTray = new THREE.Mesh(cartTrayGeo, woodMat);
+    cartTray.position.set(cartX, wheelRadius + 0.24 + 0.035, cartZ);
+    add(cartTray);
+
+    // Metal push handle bar at rear
+    const handlePostGeo = new THREE.BoxGeometry(0.05, 0.65, 0.05);
+    for (const side of [-1, 1]) {
+      const hp = new THREE.Mesh(handlePostGeo, graphiteMat);
+      hp.position.set(cartX + side * 0.45, 0.40 + 0.325, cartZ + 0.48);
+      add(hp);
+    }
+    const handleBarGeo = new THREE.BoxGeometry(0.95, 0.05, 0.05);
+    const hb = new THREE.Mesh(handleBarGeo, metalMat);
+    hb.position.set(cartX, 0.40 + 0.65, cartZ + 0.48);
+    add(hb);
+
+    // ============================================================
+    // Range safety rules board firmly mounted on two grounded posts
+    // Board: 2.6m wide, 1.8m tall, centered at y = 1.90 (y = 1.00..2.80)
+    // Posts: height 2.80m, resting on floor y=0..2.80 (ZERO floating gap)
+    // ============================================================
+    const boardX = -8.9;
+    const boardZ = -0.5;
+    const boardY = 1.90;
+
+    // Solid wooden backing board (y = 1.00..2.80)
+    const boardBackingGeo = new THREE.BoxGeometry(2.64, 1.84, 0.06);
+    const boardBacking = new THREE.Mesh(boardBackingGeo, woodMat);
+    boardBacking.position.set(boardX, boardY, boardZ - 0.02);
+    add(boardBacking);
+
+    // Printed rules sign face
     const boardTexture = this.createRulesTexture();
-    const boardGeo = new THREE.PlaneGeometry(2.6, 1.9);
+    const boardGeo = new THREE.PlaneGeometry(2.56, 1.76);
     const board = new THREE.Mesh(boardGeo, new THREE.MeshBasicMaterial({ map: boardTexture }));
-    board.position.set(-8.9, 2.9, -0.5);
+    board.position.set(boardX, boardY, boardZ + 0.015);
     add(board);
-    const boardPostGeo = new THREE.BoxGeometry(0.09, 1.6, 0.09);
+
+    // Sturdy vertical posts: grounded at y=0, reaching the top of the board at y=2.80
+    const boardPostGeo = new THREE.BoxGeometry(0.12, 2.80, 0.12);
     for (const side of [-1, 1]) {
       const post = new THREE.Mesh(boardPostGeo, woodDarkMat);
-      post.position.set(-8.9 + side * 1.1, 0.8, -0.5);
+      post.position.set(boardX + side * 1.20, 1.40, boardZ);
       add(post);
     }
   }
@@ -741,28 +897,90 @@ export class Arena {
   }
 
   /**
-   * Small canvas texture with two lines of text (signage).
+   * High-resolution crisp signboard texture for the main back wall facility banner.
+   */
+  private createFacilitySignTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 384;
+    const ctx = canvas.getContext('2d')!;
+
+    // Dark industrial graphite background with inset panel styling
+    ctx.fillStyle = '#22252a';
+    ctx.fillRect(0, 0, 1024, 384);
+
+    ctx.fillStyle = '#2b2f36';
+    ctx.fillRect(16, 16, 992, 352);
+
+    ctx.strokeStyle = '#d9702c';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(24, 24, 976, 336);
+
+    // Decorative corner rivets
+    ctx.fillStyle = '#d9702c';
+    const corners = [[24, 24], [976, 24], [24, 336], [976, 336]];
+    for (const [cx, cy] of corners) {
+      ctx.fillRect(cx - 8, cy - 8, 16, 16);
+    }
+
+    // Title: APEX AIM RANGE (crisp, bold, centered with ample margin)
+    ctx.fillStyle = '#f4efe4';
+    ctx.font = '900 82px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('APEX AIM RANGE', 512, 145);
+
+    // Subtle orange separator bar
+    ctx.fillStyle = '#d9702c';
+    ctx.fillRect(262, 215, 500, 6);
+
+    // Subtitle: SHOOTING FACILITY
+    ctx.fillStyle = '#e2ded4';
+    ctx.font = '700 42px Arial, sans-serif';
+    ctx.fillText('SHOOTING FACILITY', 512, 275);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  /**
+   * Small canvas texture with two lines of text (signage) with auto-fitting font sizes.
    */
   private createLabelTexture(title: string, subtitle: string, textColor: string, bgColor: string, flipX = false): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 96;
+    canvas.width = 512;
+    canvas.height = 192;
     const ctx = canvas.getContext('2d')!;
     if (flipX) {
-      ctx.translate(256, 0);
+      ctx.translate(512, 0);
       ctx.scale(-1, 1);
     }
     ctx.fillStyle = bgColor;
-    ctx.fillRect(0, 0, 256, 96);
+    ctx.fillRect(0, 0, 512, 192);
+
+    // Auto-fit title font size so it never clips
+    let titleFontSize = subtitle ? 56 : 72;
+    ctx.font = `800 ${titleFontSize}px Arial, sans-serif`;
+    while (ctx.measureText(title).width > 470 && titleFontSize > 20) {
+      titleFontSize -= 2;
+      ctx.font = `800 ${titleFontSize}px Arial, sans-serif`;
+    }
+
     ctx.fillStyle = textColor;
-    ctx.font = '800 34px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(title, 128, subtitle ? 38 : 50);
+    ctx.fillText(title, 256, subtitle ? 74 : 96);
+
     if (subtitle) {
-      ctx.font = '700 20px Arial, sans-serif';
+      let subFontSize = 32;
+      ctx.font = `700 ${subFontSize}px Arial, sans-serif`;
+      while (ctx.measureText(subtitle).width > 470 && subFontSize > 14) {
+        subFontSize -= 2;
+        ctx.font = `700 ${subFontSize}px Arial, sans-serif`;
+      }
       ctx.fillStyle = 'rgba(255,255,255,0.92)';
-      ctx.fillText(subtitle, 128, 72);
+      ctx.fillText(subtitle, 256, 138);
     }
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;

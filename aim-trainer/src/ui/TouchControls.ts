@@ -4,25 +4,14 @@ const STICK_ENGAGED_CLASS = 'touch-engaged';
 const BTN_PRESSED_CLASS = 'touch-btn-pressed';
 const BTN_ACTIVE_CLASS = 'touch-btn-active';
 
-// Multiplier applied to raw drag pixels before they enter the shared look
-// pipeline. ~2.6 makes a full screen-width swipe turn roughly 130° at the
-// default sensitivity, which feels natural for flicks on a phone.
 const TOUCH_LOOK_GAIN = 2.6;
 
-/** Gameplay actions the touch controls trigger through the app (same code paths as keyboard). */
 export interface TouchActionCallbacks {
   onRequestReload?: () => void;
   onRequestPause?: () => void;
 }
 
-/**
- * On-screen controls for coarse-pointer (touch) devices.
- * Currently provides the left-side movement joystick only; it feeds the
- * existing InputManager analog vector so the desktop Player/movement
- * pipeline is reused unchanged.
- */
 export class TouchControls {
-  /** True on devices whose primary pointer is a finger rather than a mouse. */
   public static isTouchDevice(): boolean {
     return (
       typeof window.matchMedia === 'function' &&
@@ -31,53 +20,96 @@ export class TouchControls {
   }
 
   private rootEl: HTMLElement;
-  private zoneEl: HTMLElement;
-  private baseEl: HTMLElement;
-  private knobEl: HTMLElement;
+
+  // Left movement zone (entire lower-left area)
+  private moveZoneEl: HTMLElement;
+  private moveBaseEl: HTMLElement;
+  private moveKnobEl: HTMLElement;
+
+  // Right aim/shoot joystick (fixed position)
+  private fireAimZoneEl: HTMLElement;
+  private fireAimBaseEl: HTMLElement;
+  private fireAimKnobEl: HTMLElement;
+
+  // Free-look zone (rest of screen)
   private lookZoneEl: HTMLElement;
 
-  // Pointer currently driving the stick (multi-touch safe)
-  private stickPointerId: number | null = null;
-  private centerX: number = 0;
-  private centerY: number = 0;
-  private radius: number = 1;
-
-  // Pointer currently dragging the look area (independent of the stick)
-  private lookPointerId: number | null = null;
-  private lookLastX: number = 0;
-  private lookLastY: number = 0;
-
   // Action buttons
-  private fireBtnEl: HTMLButtonElement;
   private reloadBtnEl: HTMLButtonElement;
   private adsBtnEl: HTMLButtonElement;
   private pauseBtnEl: HTMLButtonElement;
-  private firePointerId: number | null = null;
+
+  // Pointer ownership
+  private movePointerId: number | null = null;
+  private fireAimPointerId: number | null = null;
+  private lookPointerId: number | null = null;
+
+  // Geometry
+  private moveCenterX: number = 0;
+  private moveCenterY: number = 0;
+  private moveRadius: number = 1;
+  private fireAimCenterX: number = 0;
+  private fireAimCenterY: number = 0;
+  private fireAimRadius: number = 1;
+  private geometryReady: boolean = false;
+
+  // Fire/aim state
+  private fireAimLastX: number = 0;
+  private fireAimLastY: number = 0;
+
+  // Action button state
   private adsActive: boolean = false;
+
+  // Fullscreen button
+  private fullscreenBtnEl: HTMLButtonElement | null = null;
+
+  private resizeObserver: ResizeObserver | null = null;
 
   constructor(callbacks: TouchActionCallbacks = {}) {
     const root = document.getElementById('touch-controls');
     if (!root) throw new Error('Touch controls root #touch-controls not found');
     this.rootEl = root;
 
-    this.zoneEl = document.createElement('div');
-    this.zoneEl.className = 'touch-joystick-zone';
-    this.zoneEl.addEventListener('pointerdown', this.onStickDown);
-    this.zoneEl.addEventListener('pointermove', this.onStickMove);
-    this.zoneEl.addEventListener('pointerup', this.onStickUp);
-    this.zoneEl.addEventListener('pointercancel', this.onStickUp);
-    this.zoneEl.addEventListener('contextmenu', (e) => e.preventDefault());
+    // LEFT MOVEMENT ZONE (entire lower-left area)
+    this.moveZoneEl = document.createElement('div');
+    this.moveZoneEl.className = 'touch-move-zone';
+    this.moveZoneEl.addEventListener('pointerdown', this.onMoveDown);
+    this.moveZoneEl.addEventListener('pointermove', this.onMoveMove);
+    this.moveZoneEl.addEventListener('pointerup', this.onMoveUp);
+    this.moveZoneEl.addEventListener('pointercancel', this.onMoveUp);
+    this.moveZoneEl.addEventListener('contextmenu', (e) => e.preventDefault());
 
-    this.baseEl = document.createElement('div');
-    this.baseEl.className = 'touch-joystick-base';
+    this.moveBaseEl = document.createElement('div');
+    this.moveBaseEl.className = 'touch-joystick-base';
 
-    this.knobEl = document.createElement('div');
-    this.knobEl.className = 'touch-joystick-knob';
+    this.moveKnobEl = document.createElement('div');
+    this.moveKnobEl.className = 'touch-joystick-knob';
 
-    this.baseEl.appendChild(this.knobEl);
-    this.zoneEl.appendChild(this.baseEl);
-    this.rootEl.appendChild(this.zoneEl);
+    this.moveBaseEl.appendChild(this.moveKnobEl);
+    this.moveZoneEl.appendChild(this.moveBaseEl);
+    this.rootEl.appendChild(this.moveZoneEl);
 
+    // RIGHT AIM/SHOOT JOYSTICK (fixed position)
+    this.fireAimZoneEl = document.createElement('div');
+    this.fireAimZoneEl.className = 'touch-fire-aim-zone';
+    this.fireAimZoneEl.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    this.fireAimBaseEl = document.createElement('div');
+    this.fireAimBaseEl.className = 'touch-joystick-base touch-fire-aim-base';
+    this.fireAimBaseEl.addEventListener('pointerdown', this.onFireAimDown);
+    this.fireAimBaseEl.addEventListener('pointermove', this.onFireAimMove);
+    this.fireAimBaseEl.addEventListener('pointerup', this.onFireAimUp);
+    this.fireAimBaseEl.addEventListener('pointercancel', this.onFireAimUp);
+    this.fireAimBaseEl.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    this.fireAimKnobEl = document.createElement('div');
+    this.fireAimKnobEl.className = 'touch-joystick-knob touch-fire-aim-knob';
+
+    this.fireAimBaseEl.appendChild(this.fireAimKnobEl);
+    this.fireAimZoneEl.appendChild(this.fireAimBaseEl);
+    this.rootEl.appendChild(this.fireAimZoneEl);
+
+    // FREE-LOOK ZONE (rest of screen - for camera control without shooting)
     this.lookZoneEl = document.createElement('div');
     this.lookZoneEl.className = 'touch-look-zone';
     this.lookZoneEl.addEventListener('pointerdown', this.onLookDown);
@@ -87,15 +119,9 @@ export class TouchControls {
     this.lookZoneEl.addEventListener('contextmenu', (e) => e.preventDefault());
     this.rootEl.appendChild(this.lookZoneEl);
 
-    // Bottom-right action cluster (appended after the look zone so taps on
-    // the buttons never reach it). All actions reuse existing gameplay paths.
+    // ACTION BUTTONS (reload, ADS, pause)
     const cluster = document.createElement('div');
     cluster.className = 'touch-action-cluster';
-
-    this.fireBtnEl = this.createActionButton('touch-btn-fire', 'FIRE');
-    this.fireBtnEl.addEventListener('pointerdown', this.onFireDown);
-    this.fireBtnEl.addEventListener('pointerup', this.onFireUp);
-    this.fireBtnEl.addEventListener('pointercancel', this.onFireUp);
 
     this.reloadBtnEl = this.createActionButton('touch-btn-reload', 'RELOAD');
     this.reloadBtnEl.addEventListener('pointerdown', () => callbacks.onRequestReload?.());
@@ -113,8 +139,31 @@ export class TouchControls {
     cluster.appendChild(this.pauseBtnEl);
     cluster.appendChild(this.reloadBtnEl);
     cluster.appendChild(this.adsBtnEl);
-    cluster.appendChild(this.fireBtnEl);
     this.rootEl.appendChild(cluster);
+
+    // FULLSCREEN BUTTON (top-right)
+    this.fullscreenBtnEl = document.createElement('button');
+    this.fullscreenBtnEl.type = 'button';
+    this.fullscreenBtnEl.className = 'touch-fullscreen-btn';
+    this.fullscreenBtnEl.textContent = '⛶';
+    this.fullscreenBtnEl.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      this.toggleFullscreen();
+    });
+    this.fullscreenBtnEl.addEventListener('contextmenu', (e) => e.preventDefault());
+    this.rootEl.appendChild(this.fullscreenBtnEl);
+
+    // Observe both joystick bases for geometry
+    this.resizeObserver = new ResizeObserver(() => this.updateGeometry());
+    this.resizeObserver.observe(this.moveBaseEl);
+    this.resizeObserver.observe(this.fireAimBaseEl);
+
+    // Ensure geometry is ready on first load
+    if (document.readyState === 'complete') {
+      requestAnimationFrame(() => this.updateGeometry());
+    } else {
+      window.addEventListener('load', () => requestAnimationFrame(() => this.updateGeometry()), { once: true });
+    }
   }
 
   private createActionButton(className: string, label: string): HTMLButtonElement {
@@ -122,121 +171,227 @@ export class TouchControls {
     btn.type = 'button';
     btn.className = `touch-btn ${className}`;
     btn.textContent = label;
-    // Canceling pointerdown suppresses the compatibility mouse events that
-    // would otherwise re-trigger game handlers (e.g. pause-overlay resume)
     btn.addEventListener('pointerdown', (e) => e.preventDefault());
     btn.addEventListener('contextmenu', (e) => e.preventDefault());
     return btn;
   }
 
-  /** Shows/hides the touch controls (hidden in menus, while paused, on results). */
+  private updateGeometry(): void {
+    const moveRect = this.moveBaseEl.getBoundingClientRect();
+    const fireRect = this.fireAimBaseEl.getBoundingClientRect();
+
+    if (moveRect.width > 0 && moveRect.height > 0) {
+      this.moveCenterX = moveRect.left + moveRect.width / 2;
+      this.moveCenterY = moveRect.top + moveRect.height / 2;
+      this.moveRadius = moveRect.width / 2;
+    }
+
+    if (fireRect.width > 0 && fireRect.height > 0) {
+      this.fireAimCenterX = fireRect.left + fireRect.width / 2;
+      this.fireAimCenterY = fireRect.top + fireRect.height / 2;
+      this.fireAimRadius = fireRect.width / 2;
+    }
+
+    this.geometryReady = true;
+  }
+
   public setVisible(visible: boolean): void {
     this.rootEl.classList.toggle('hidden', !visible);
     if (!visible) {
-      this.releaseStick();
+      this.releaseMove();
+      this.releaseFireAim();
       this.releaseLook();
       this.releaseActions();
     }
   }
 
-  private onStickDown = (e: PointerEvent): void => {
-    if (this.stickPointerId !== null) return; // already tracking a finger
-    e.preventDefault(); // suppress compatibility mouse events
+  // ========== LEFT MOVEMENT JOYSTICK (slightly dynamic) ==========
 
-    this.stickPointerId = e.pointerId;
+  private onMoveDown = (e: PointerEvent): void => {
+    if (this.movePointerId !== null) return;
+    if (!this.geometryReady) this.updateGeometry();
+    if (!this.geometryReady) return;
+
+    // Ignore if this pointer is already owned by fire/aim or look
+    if (e.pointerId === this.fireAimPointerId || e.pointerId === this.lookPointerId) return;
+
+    e.preventDefault();
+
+    this.movePointerId = e.pointerId;
     try {
-      this.zoneEl.setPointerCapture(e.pointerId);
+      this.moveZoneEl.setPointerCapture(e.pointerId);
     } catch {
-      // Capture is best-effort; drag still works while the finger stays inside
     }
 
-    // Floating origin: re-anchor the base under the thumb, kept within margins
-    const zoneRect = this.zoneEl.getBoundingClientRect();
-    const size = this.baseEl.offsetWidth || 1;
-    const margin = size / 2 + 8;
-    const localX = Math.min(Math.max(e.clientX - zoneRect.left, margin), Math.max(zoneRect.width - margin, margin));
-    const localY = Math.min(Math.max(e.clientY - zoneRect.top, margin), Math.max(zoneRect.height - margin, margin));
-    this.baseEl.style.left = `${localX}px`;
-    this.baseEl.style.top = `${localY}px`;
-    this.baseEl.style.bottom = 'auto'; // override the CSS rest anchor
-    this.baseEl.classList.add(STICK_ENGAGED_CLASS);
+    // Slightly dynamic: center the joystick base on the initial touch position
+    // but constrain it to the lower-left zone
+    const zoneRect = this.moveZoneEl.getBoundingClientRect();
+    const baseSize = this.moveBaseEl.offsetWidth || 1;
+    const margin = baseSize / 2 + 8;
 
-    const baseRect = this.baseEl.getBoundingClientRect();
-    this.centerX = baseRect.left + baseRect.width / 2;
-    this.centerY = baseRect.top + baseRect.height / 2;
-    this.radius = baseRect.width / 2 || 1;
+    const localX = Math.min(
+      Math.max(e.clientX - zoneRect.left, margin),
+      Math.max(zoneRect.width - margin, margin)
+    );
+    const localY = Math.min(
+      Math.max(e.clientY - zoneRect.top, margin),
+      Math.max(zoneRect.height - margin, margin)
+    );
 
-    this.applyKnob(e.clientX, e.clientY);
+    this.moveBaseEl.style.left = `${localX}px`;
+    this.moveBaseEl.style.top = `${localY}px`;
+    this.moveBaseEl.style.bottom = 'auto';
+    this.moveBaseEl.style.right = 'auto';
+    this.moveBaseEl.classList.add(STICK_ENGAGED_CLASS);
+
+    // Update center after repositioning
+    const baseRect = this.moveBaseEl.getBoundingClientRect();
+    this.moveCenterX = baseRect.left + baseRect.width / 2;
+    this.moveCenterY = baseRect.top + baseRect.height / 2;
+    this.moveRadius = baseRect.width / 2;
+
+    this.applyMoveKnob(e.clientX, e.clientY);
   };
 
-  private onStickMove = (e: PointerEvent): void => {
-    if (e.pointerId !== this.stickPointerId) return;
-    this.applyKnob(e.clientX, e.clientY);
+  private onMoveMove = (e: PointerEvent): void => {
+    if (e.pointerId !== this.movePointerId) return;
+    if (!this.geometryReady) return;
+    this.applyMoveKnob(e.clientX, e.clientY);
   };
 
-  private applyKnob(pointerX: number, pointerY: number): void {
-    let dx = pointerX - this.centerX;
-    let dy = pointerY - this.centerY;
+  private applyMoveKnob(pointerX: number, pointerY: number): void {
+    let dx = pointerX - this.moveCenterX;
+    let dy = pointerY - this.moveCenterY;
     const dist = Math.hypot(dx, dy);
-    if (dist > this.radius) {
-      dx = (dx / dist) * this.radius;
-      dy = (dy / dist) * this.radius;
+    if (dist > this.moveRadius) {
+      dx = (dx / dist) * this.moveRadius;
+      dy = (dy / dist) * this.moveRadius;
     }
 
-    this.knobEl.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    this.moveKnobEl.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
 
-    // Normalized analog vector: x right+, y down+ maps to z back+
-    // (matches getMovementVector semantics used by Player.update)
-    inputManager.setTouchMoveVector(dx / this.radius, dy / this.radius);
+    // x: right+, y: down+ (maps to z: back+)
+    inputManager.setTouchMoveVector(dx / this.moveRadius, dy / this.moveRadius);
   }
 
-  private onStickUp = (e: PointerEvent): void => {
-    if (e.pointerId !== this.stickPointerId) return;
-    this.releaseStick();
+  private onMoveUp = (e: PointerEvent): void => {
+    if (e.pointerId !== this.movePointerId) return;
+    this.releaseMove();
   };
 
-  private releaseStick(): void {
-    if (this.stickPointerId !== null) {
+  private releaseMove(): void {
+    if (this.movePointerId !== null) {
       try {
-        this.zoneEl.releasePointerCapture(this.stickPointerId);
+        this.moveZoneEl.releasePointerCapture(this.movePointerId);
       } catch {
-        // Already released when the pointer left the document
       }
     }
-    this.stickPointerId = null;
-    this.baseEl.classList.remove(STICK_ENGAGED_CLASS);
-    this.baseEl.style.left = '';
-    this.baseEl.style.top = '';
-    this.baseEl.style.bottom = '';
-    this.knobEl.style.transform = '';
+    this.movePointerId = null;
+    this.moveBaseEl.classList.remove(STICK_ENGAGED_CLASS);
+    this.moveBaseEl.style.left = '';
+    this.moveBaseEl.style.top = '';
+    this.moveBaseEl.style.bottom = '';
+    this.moveBaseEl.style.right = '';
+    this.moveKnobEl.style.transform = '';
     inputManager.setTouchMoveVector(0, 0);
   }
 
+  // ========== RIGHT AIM/SHOOT JOYSTICK (fixed, touch=fire, drag=aim) ==========
+
+  private onFireAimDown = (e: PointerEvent): void => {
+    if (this.fireAimPointerId !== null) return;
+    if (!this.geometryReady) return;
+
+    // Ignore if this pointer is already owned by move
+    if (e.pointerId === this.movePointerId) return;
+
+    e.preventDefault();
+
+    this.fireAimPointerId = e.pointerId;
+    try {
+      this.fireAimBaseEl.setPointerCapture(e.pointerId);
+    } catch {
+    }
+
+    this.fireAimLastX = e.clientX;
+    this.fireAimLastY = e.clientY;
+
+    this.fireAimBaseEl.classList.add(BTN_PRESSED_CLASS);
+    this.fireAimKnobEl.style.transform = 'translate(-50%, -50%)'; // Center knob
+    inputManager.setVirtualFire(true);
+  };
+
+  private onFireAimMove = (e: PointerEvent): void => {
+    if (e.pointerId !== this.fireAimPointerId) return;
+    if (!this.geometryReady) return;
+
+    // Visual feedback: move knob slightly to show drag direction
+    let dx = e.clientX - this.fireAimCenterX;
+    let dy = e.clientY - this.fireAimCenterY;
+    const dist = Math.hypot(dx, dy);
+    if (dist > this.fireAimRadius) {
+      dx = (dx / dist) * this.fireAimRadius;
+      dy = (dy / dist) * this.fireAimRadius;
+    }
+    this.fireAimKnobEl.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+
+    // Camera look delta
+    const lookDx = e.clientX - this.fireAimLastX;
+    const lookDy = e.clientY - this.fireAimLastY;
+    this.fireAimLastX = e.clientX;
+    this.fireAimLastY = e.clientY;
+
+    inputManager.addTouchLookDelta(lookDx * TOUCH_LOOK_GAIN, lookDy * TOUCH_LOOK_GAIN);
+  };
+
+  private onFireAimUp = (e: PointerEvent): void => {
+    if (e.pointerId !== this.fireAimPointerId) return;
+    this.releaseFireAim();
+  };
+
+  private releaseFireAim(): void {
+    if (this.fireAimPointerId !== null) {
+      try {
+        this.fireAimBaseEl.releasePointerCapture(this.fireAimPointerId);
+      } catch {
+      }
+    }
+    this.fireAimPointerId = null;
+    this.fireAimBaseEl.classList.remove(BTN_PRESSED_CLASS);
+    this.fireAimKnobEl.style.transform = 'translate(-50%, -50%)';
+    inputManager.setVirtualFire(false);
+  }
+
+  // ========== FREE-LOOK ZONE (camera only, no shooting) ==========
+
   private onLookDown = (e: PointerEvent): void => {
-    if (this.lookPointerId !== null) return; // already tracking a finger
-    e.preventDefault(); // suppress compatibility mouse events
+    if (this.lookPointerId !== null) return;
+    if (!this.geometryReady) return;
+
+    // Ignore if this pointer is already owned by move or fire/aim
+    if (e.pointerId === this.movePointerId || e.pointerId === this.fireAimPointerId) return;
+
+    e.preventDefault();
 
     this.lookPointerId = e.pointerId;
     try {
       this.lookZoneEl.setPointerCapture(e.pointerId);
     } catch {
-      // Capture is best-effort; drag still works while the finger stays inside
     }
-    this.lookLastX = e.clientX;
-    this.lookLastY = e.clientY;
+
+    this.fireAimLastX = e.clientX;
+    this.fireAimLastY = e.clientY;
   };
 
   private onLookMove = (e: PointerEvent): void => {
     if (e.pointerId !== this.lookPointerId) return;
+    if (!this.geometryReady) return;
 
-    const dx = e.clientX - this.lookLastX;
-    const dy = e.clientY - this.lookLastY;
-    this.lookLastX = e.clientX;
-    this.lookLastY = e.clientY;
+    const dx = e.clientX - this.fireAimLastX;
+    const dy = e.clientY - this.fireAimLastY;
+    this.fireAimLastX = e.clientX;
+    this.fireAimLastY = e.clientY;
 
-    // Same sign convention as mouse movementX/Y: drag right looks right,
-    // drag down looks down. Deltas join the shared pool consumed once per
-    // frame by Player.update.
     inputManager.addTouchLookDelta(dx * TOUCH_LOOK_GAIN, dy * TOUCH_LOOK_GAIN);
   };
 
@@ -250,47 +405,29 @@ export class TouchControls {
       try {
         this.lookZoneEl.releasePointerCapture(this.lookPointerId);
       } catch {
-        // Already released when the pointer left the document
       }
     }
     this.lookPointerId = null;
   }
 
-  private onFireDown = (e: PointerEvent): void => {
-    if (this.firePointerId !== null) return; // already firing
-
-    this.firePointerId = e.pointerId;
-    try {
-      this.fireBtnEl.setPointerCapture(e.pointerId);
-    } catch {
-      // Capture is best-effort; release still arrives in normal use
-    }
-    this.fireBtnEl.classList.add(BTN_PRESSED_CLASS);
-    inputManager.setVirtualFire(true);
-  };
-
-  private onFireUp = (e: PointerEvent): void => {
-    if (this.firePointerId !== null && e.pointerId !== this.firePointerId) return;
-    this.releaseFire();
-  };
+  // ========== ACTION BUTTONS ==========
 
   private releaseActions(): void {
-    this.releaseFire();
+    this.releaseFireAim();
     this.adsActive = false;
     this.adsBtnEl.classList.remove(BTN_ACTIVE_CLASS);
     inputManager.setVirtualADS(false);
   }
 
-  private releaseFire(): void {
-    if (this.firePointerId !== null) {
-      try {
-        this.fireBtnEl.releasePointerCapture(this.firePointerId);
-      } catch {
-        // Already released when the pointer left the document
-      }
+  private toggleFullscreen(): void {
+    const elem = document.documentElement;
+    if (!document.fullscreenElement) {
+      elem.requestFullscreen().catch(() => {
+        // Ignore - some browsers require user gesture
+      });
+    } else {
+      document.exitFullscreen().catch(() => {
+      });
     }
-    this.firePointerId = null;
-    this.fireBtnEl.classList.remove(BTN_PRESSED_CLASS);
-    inputManager.setVirtualFire(false);
   }
 }

@@ -38,10 +38,10 @@ export const DOOR = {
 };
 
 export const DECK_SIDE = {
-  minX: 12.45,
-  maxX: 15.95,
-  minZ: -20.7,
-  maxZ: -4.3,
+  minX: 13.9,
+  maxX: 16.7,
+  minZ: -20.2,
+  maxZ: -0.3,
 };
 
 export const ARENA_BOUNDS = {
@@ -66,11 +66,11 @@ export function buildArenaColliders(): ColliderBox[] {
 
     // Backstop curb + target holders (target wall stays untouched)
     BOX(-17, 17, -31.75, -31.05),
-    BOX(-8.16, -7.84, -31.1, -30.9),
-    BOX(-4.16, -3.84, -31.1, -30.9),
-    BOX(-0.16, 0.16, -31.1, -30.9),
-    BOX(3.84, 4.16, -31.1, -30.9),
-    BOX(7.84, 8.16, -31.1, -30.9),
+    BOX(-8.2, -7.8, -31.55, -31.25),
+    BOX(-4.2, -3.8, -31.55, -31.25),
+    BOX(-0.2, 0.2, -31.55, -31.25),
+    BOX(3.8, 4.2, -31.55, -31.25),
+    BOX(7.8, 8.2, -31.55, -31.25),
 
     // Side storage decks (blocked so the player cannot climb or pass under)
     BOX(DECK_SIDE.minX, DECK_SIDE.maxX, DECK_SIDE.minZ, DECK_SIDE.maxZ),
@@ -88,15 +88,13 @@ export function buildArenaColliders(): ColliderBox[] {
     BOX(3.27, 3.37, -1.7, 2.1),
     BOX(-3.37, -3.27, -1.7, 2.1),
 
-    // Storage props at the rear
-    BOX(-10.0, -7.4, 3.6, 5.5),
-    BOX(7.4, 10.0, 3.6, 5.4),
-    BOX(-12.2, -10.8, 3.85, 5.0),
-    BOX(10.9, 12.3, 3.7, 4.9),
-    BOX(-13.35, -11.65, 2.1, 3.1),
+    // Storage props at the rear corners
+    BOX(-12.8, -9.1, 3.8, 5.6),
+    BOX(9.1, 12.8, 3.8, 5.6),
+    BOX(-13.4, -11.6, 2.0, 3.2),
 
     // Range safety board posts
-    BOX(-10.05, -9.95, -0.55, -0.45),
-    BOX(-7.85, -7.75, -0.55, -0.45),
+    BOX(-10.2, -9.95, -0.6, -0.4),
+    BOX(-7.85, -7.6, -0.6, -0.4),
   ];
 }
