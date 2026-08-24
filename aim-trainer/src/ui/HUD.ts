@@ -1,5 +1,6 @@
 import { CrosshairRenderer } from './CrosshairRenderer';
 import { ScopeOverlay } from './ScopeOverlay';
+import { TouchControls } from './TouchControls';
 
 export class HUD {
   private scoreEl: HTMLElement;
@@ -83,14 +84,16 @@ export class HUD {
       this.reloadPromptEl.classList.remove('hidden');
     } else {
       this.magAmmoEl.textContent = mag.toString();
-      this.reserveAmmoEl.textContent = reserve.toString();
+      this.reserveAmmoEl.textContent = Number.isFinite(reserve) ? reserve.toString() : '∞';
 
       if (mag <= 5 && mag > 0) {
         this.magAmmoEl.style.color = 'var(--accent-gold)';
         this.reloadPromptEl.classList.add('hidden');
       } else if (mag === 0) {
         this.magAmmoEl.style.color = 'var(--accent-coral)';
-        this.reloadPromptEl.textContent = 'PRESS [R] TO RELOAD';
+        this.reloadPromptEl.textContent = TouchControls.isTouchDevice()
+          ? 'TAP RELOAD TO RELOAD'
+          : 'PRESS [R] TO RELOAD';
         this.reloadPromptEl.classList.remove('hidden');
       } else {
         this.magAmmoEl.style.color = '#ffffff';
@@ -210,7 +213,7 @@ export class HUD {
 
   public reset(duration: number): void {
     this.updateScore(0, 0, 0, 100, 0, 0);
-    this.updateAmmo(30, 120, false);
+    this.updateAmmo(30, Infinity, false);
     this.updateTimer(duration, duration);
     this.updateAvgReaction(0);
     this.showPause(false);

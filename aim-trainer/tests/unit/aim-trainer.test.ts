@@ -67,6 +67,125 @@ describe('InputManager', () => {
     expect(vec.z).toBe(0);
   });
 
+  it('should prefer an active analog touch vector over keyboard flags', () => {
+    inputManager.setTouchMoveVector(0, -1); // full forward push
+    const vec = inputManager.getMovementVector();
+    expect(vec.x).toBeCloseTo(0);
+    expect(vec.z).toBeCloseTo(-1);
+    inputManager.setTouchMoveVector(0, 0);
+  });
+
+  it('should normalize oversized touch vectors', () => {
+    inputManager.setTouchMoveVector(2, 2);
+    const vec = inputManager.getMovementVector();
+    expect(Math.hypot(vec.x, vec.z)).toBeCloseTo(1);
+    inputManager.setTouchMoveVector(0, 0);
+  });
+
+  it('should fall back to keyboard movement once the stick is released', () => {
+    inputManager.setTouchMoveVector(-0.5, 0);
+    expect(inputManager.getMovementVector().x).toBeCloseTo(-0.5);
+
+    inputManager.setTouchMoveVector(0, 0);
+    const vec = inputManager.getMovementVector();
+    expect(vec.x).toBe(0);
+    expect(vec.z).toBe(0);
+  });
+
+  it('should clear the touch vector when input is disabled', () => {
+    inputManager.setTouchMoveVector(0, -0.8);
+    inputManager.setInputEnabled(false);
+    const vec = inputManager.getMovementVector();
+    expect(vec.x).toBe(0);
+    expect(vec.z).toBe(0);
+  });
+
+  it('should ignore mouse events originating from touch controls', () => {
+    inputManager.attach(document.createElement('div'));
+    inputManager.setInputEnabled(true);
+
+    const host = document.createElement('div');
+    host.id = 'touch-controls';
+    const pad = document.createElement('div');
+    host.appendChild(pad);
+    document.body.appendChild(host);
+
+    pad.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+    expect(inputManager.isFireHeld()).toBe(false);
+    expect(inputManager.consumeFirePressed()).toBe(false);
+
+    document.body.removeChild(host);
+    inputManager.detach();
+  });
+
+  it('should fold touch look deltas into the shared mouse delta pipeline', () => {
+    inputManager.attach(document.createElement('div'));
+    inputManager.setInputEnabled(true);
+
+    inputManager.addTouchLookDelta(100, 50);
+    const deltas = inputManager.consumeMouseDelta();
+    expect(deltas.deltaX).toBeGreaterThan(0);
+    expect(deltas.deltaY).toBeGreaterThan(0);
+
+    // Consumed exactly once per frame like mouse deltas
+    expect(inputManager.consumeMouseDelta()).toEqual({ deltaX: 0, deltaY: 0 });
+    inputManager.detach();
+  });
+
+  it('should ignore touch look deltas while input is disabled', () => {
+    inputManager.attach(document.createElement('div'));
+    inputManager.setInputEnabled(true);
+    // Drain any leftovers from prior tests
+    inputManager.consumeMouseDelta();
+
+    inputManager.setInputEnabled(false);
+    inputManager.addTouchLookDelta(100, 50);
+    expect(inputManager.consumeMouseDelta()).toEqual({ deltaX: 0, deltaY: 0 });
+    inputManager.detach();
+  });
+
+  it('should drive the fire pipeline from the virtual fire control', () => {
+    inputManager.attach(document.createElement('div'));
+    inputManager.setInputEnabled(true);
+
+    inputManager.setVirtualFire(true);
+    expect(inputManager.isFireHeld()).toBe(true);
+    // Edge fires exactly once, then the hold sustains auto-fire
+    expect(inputManager.consumeFirePressed()).toBe(true);
+    expect(inputManager.consumeFirePressed()).toBe(false);
+
+    inputManager.setVirtualFire(false);
+    expect(inputManager.isFireHeld()).toBe(false);
+    expect(inputManager.consumeFirePressed()).toBe(false);
+    inputManager.detach();
+  });
+
+  it('should ignore virtual fire while input is disabled', () => {
+    inputManager.attach(document.createElement('div'));
+    inputManager.setInputEnabled(false);
+
+    inputManager.setVirtualFire(true);
+    expect(inputManager.isFireHeld()).toBe(false);
+    expect(inputManager.consumeFirePressed()).toBe(false);
+    inputManager.detach();
+  });
+
+  it('should track the virtual ADS toggle through the same ads state', () => {
+    inputManager.attach(document.createElement('div'));
+    inputManager.setInputEnabled(true);
+
+    inputManager.setVirtualADS(true);
+    expect(inputManager.isADS()).toBe(true);
+    inputManager.setVirtualADS(false);
+    expect(inputManager.isADS()).toBe(false);
+
+    // Disabled input forces ADS off even if a toggle was left active
+    inputManager.setVirtualADS(true);
+    inputManager.setInputEnabled(false);
+    expect(inputManager.isADS()).toBe(false);
+    inputManager.detach();
+  });
+
   it('should track left-button hold state and press edge exactly once', () => {
     inputManager.attach(document.createElement('div'));
     inputManager.setInputEnabled(true);
@@ -341,7 +460,7 @@ describe('First-Person Weapon & Ammunition', () => {
 
     expect(camera.children).toContain(weapon.group);
     expect(weapon.magAmmo).toBe(30);
-    expect(weapon.reserveAmmo).toBe(120);
+    expect(weapon.reserveAmmo).toBe(Infinity);
 
     // Shoot 5 rounds (advancing past the fire-rate cooldown between shots)
     for (let i = 0; i < 5; i++) {
@@ -364,7 +483,8 @@ describe('First-Person Weapon & Ammunition', () => {
     weapon.update(1.7, false);
     expect(weapon.isReloading).toBe(false);
     expect(weapon.magAmmo).toBe(30);
-    expect(weapon.reserveAmmo).toBe(115);
+    // Infinite reserve: reload tops the mag up without depleting the reserve
+    expect(weapon.reserveAmmo).toBe(Infinity);
 
     weapon.dispose();
   });

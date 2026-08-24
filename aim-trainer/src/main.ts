@@ -14,6 +14,7 @@ import { Weapon } from './entities/Weapon';
 import { FlickMode } from './modes/FlickMode';
 import { PracticeMode } from './modes/PracticeMode';
 import { BaseTrainingMode, ModeState } from './modes/TrainingMode';
+import { TouchControls } from './ui/TouchControls';
 import { UIManager } from './ui/UIManager';
 
 class AimTrainerApp {
@@ -27,6 +28,9 @@ class AimTrainerApp {
   private practiceMode: PracticeMode;
   private flickMode: FlickMode;
   private uiManager: UIManager;
+
+  /** On-screen controls for touch devices; null on desktop. */
+  private touchControls: TouchControls | null = null;
 
   /** The mode currently receiving shoot/update events, or null when in menu */
   private activeMode: BaseTrainingMode | null = null;
@@ -64,6 +68,14 @@ class AimTrainerApp {
 
     // 4. Attach Input to Canvas
     inputManager.attach(this.engine.getCanvas());
+
+    // 4b. On-screen touch controls (movement joystick) on coarse-pointer devices
+    if (TouchControls.isTouchDevice()) {
+      this.touchControls = new TouchControls({
+        onRequestReload: () => this.reloadWeapon(),
+        onRequestPause: () => this.requestPause(),
+      });
+    }
 
     // 5. Initialize UI Manager
     this.uiManager = new UIManager({
@@ -114,6 +126,7 @@ class AimTrainerApp {
         onSessionComplete: (stats) => {
           inputManager.setInputEnabled(false);
           inputManager.exitLock();
+          this.touchControls?.setVisible(false);
           this.uiManager.showResults(stats);
         },
       }
@@ -122,17 +135,9 @@ class AimTrainerApp {
     // 7. Keyboard Controls: R for Reload, Escape for Pause
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyR') {
-        if (this.weapon.reload()) {
-          this.uiManager.hud.updateAmmo(this.weapon.magAmmo, this.weapon.reserveAmmo, true);
-        }
+        this.reloadWeapon();
       } else if (e.code === 'Escape') {
-        const modeState = this.activeMode?.getState();
-        if (modeState === 'RUNNING' || modeState === 'COUNTDOWN') {
-          this.activeMode?.pause();
-          inputManager.exitLock();
-        } else if (modeState === 'PAUSED') {
-          this.resumeSession();
-        }
+        this.requestPause();
       }
     });
 
@@ -226,10 +231,30 @@ class AimTrainerApp {
   private handleModeStateChange(state: ModeState): void {
     if (state === 'PAUSED') {
       inputManager.setInputEnabled(false);
+      this.touchControls?.setVisible(false);
       this.uiManager.hud.showPause(true);
+      this.uiManager.markPauseOverlayShown();
     } else {
       inputManager.setInputEnabled(true);
       this.uiManager.hud.showPause(false);
+    }
+  }
+
+  /** Shared reload path for the R key and the touch reload button. */
+  private reloadWeapon(): void {
+    if (this.weapon.reload()) {
+      this.uiManager.hud.updateAmmo(this.weapon.magAmmo, this.weapon.reserveAmmo, true);
+    }
+  }
+
+  /** Shared pause/resume toggle for Escape and the touch pause button. */
+  private requestPause(): void {
+    const modeState = this.activeMode?.getState();
+    if (modeState === 'RUNNING' || modeState === 'COUNTDOWN') {
+      this.activeMode?.pause();
+      inputManager.exitLock();
+    } else if (modeState === 'PAUSED') {
+      this.resumeSession();
     }
   }
 
@@ -296,12 +321,14 @@ class AimTrainerApp {
     this.activeMode = mode;
     inputManager.setInputEnabled(true);
     inputManager.requestLock();
+    this.touchControls?.setVisible(true);
     mode.start();
   }
 
   private resumeSession(): void {
     this.activeMode?.resume();
     inputManager.requestLock();
+    this.touchControls?.setVisible(true);
   }
 
   private returnToMenu(): void {
@@ -311,6 +338,7 @@ class AimTrainerApp {
     this.weapon.reset();
     inputManager.setInputEnabled(false);
     inputManager.exitLock();
+    this.touchControls?.setVisible(false);
     this.uiManager.showMainMenu();
   }
 }

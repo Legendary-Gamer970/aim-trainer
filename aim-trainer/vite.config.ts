@@ -5,7 +5,7 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
-    allowedHosts: ['violation-urw-job-senators.trycloudflare.com'],
+    allowedHosts: ['transport-first-equilibrium-enabling.trycloudflare.com'],
   },
   build: {
     target: 'esnext',

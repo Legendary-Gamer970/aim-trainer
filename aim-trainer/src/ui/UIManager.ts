@@ -20,6 +20,10 @@ export class UIManager {
   private settingsModalEl: HTMLElement;
   private pauseOverlay: HTMLElement;
 
+  // Guards against the tap on the pause button instantly resuming: the
+  // tap's click can land on the overlay that appears mid-tap
+  private pauseShownAt: number = -Infinity;
+
   public hud: HUD;
   public mainMenu: MainMenu;
   public resultsScreen: ResultsScreen;
@@ -65,8 +69,17 @@ export class UIManager {
       if (target.id === 'btn-pause-menu' || target.closest('#btn-pause-menu')) {
         return;
       }
+      // Ignore clicks that arrive right as the overlay opens (same tap)
+      if (performance.now() - this.pauseShownAt < 350) {
+        return;
+      }
       callbacks.onResumeSession();
     });
+  }
+
+  /** Called when the pause overlay becomes visible; opens the resume guard window. */
+  public markPauseOverlayShown(): void {
+    this.pauseShownAt = performance.now();
   }
 
   public showMainMenu(): void {

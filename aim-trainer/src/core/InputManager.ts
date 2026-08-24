@@ -2,6 +2,16 @@ import { settingsManager } from '../config/settings';
 
 export type LockChangeCallback = (isLocked: boolean) => void;
 
+/** Chrome/Edge expose touch-origin info on synthesized mouse events. */
+interface InputDeviceCapabilitiesLike {
+  firesTouchEvents?: boolean;
+}
+
+/** True for compatibility mouse events that were synthesized from touch input. */
+function isTouchSynthesized(e: MouseEvent): boolean {
+  const caps = (e as MouseEvent & { sourceCapabilities?: InputDeviceCapabilitiesLike | null }).sourceCapabilities;
+  return caps?.firesTouchEvents === true;
+}
 export class InputManager {
   private targetElement: HTMLElement | null = null;
   private isPointerLocked: boolean = false;
@@ -22,6 +32,11 @@ export class InputManager {
     right: false,
   };
 
+  // Analog touch movement from the on-screen joystick. A zero vector means
+  // released, in which case keyboard flags drive movement exactly as before.
+  private touchMoveX: number = 0;
+  private touchMoveZ: number = 0;
+
   // Mouse button held state (auto-fire + ADS)
   private fireHeld: boolean = false;
   private adsHeld: boolean = false;
@@ -31,6 +46,9 @@ export class InputManager {
   private adsSensitivityMultiplier: number = 1.0;
   private ignoreNextMouseMove: boolean = false;
   private inputEnabled: boolean = false;
+  // Timestamp of the last touch-originated pointerdown, used to filter the
+  // compatibility mouse events some browsers synthesize right after it
+  private lastTouchPointerDownAt: number = -Infinity;
   private lockChangeCallbacks: Set<LockChangeCallback> = new Set();
 
   constructor() {
@@ -50,6 +68,13 @@ export class InputManager {
     this.onWindowBlur = this.onWindowBlur.bind(this);
     this.onPointerLockChange = this.onPointerLockChange.bind(this);
     this.onPointerLockError = this.onPointerLockError.bind(this);
+    this.onTouchPointerDown = this.onTouchPointerDown.bind(this);
+  }
+
+  private onTouchPointerDown(e: PointerEvent): void {
+    if (e.pointerType === 'touch') {
+      this.lastTouchPointerDownAt = performance.now();
+    }
   }
 
   public attach(element: HTMLElement): void {
@@ -64,6 +89,7 @@ export class InputManager {
     window.addEventListener('blur', this.onWindowBlur);
     document.addEventListener('pointerlockchange', this.onPointerLockChange);
     document.addEventListener('pointerlockerror', this.onPointerLockError);
+    document.addEventListener('pointerdown', this.onTouchPointerDown, true);
   }
 
   public detach(): void {
@@ -76,6 +102,7 @@ export class InputManager {
     window.removeEventListener('blur', this.onWindowBlur);
     document.removeEventListener('pointerlockchange', this.onPointerLockChange);
     document.removeEventListener('pointerlockerror', this.onPointerLockError);
+    document.removeEventListener('pointerdown', this.onTouchPointerDown, true);
   }
 
   public requestLock(): void {
@@ -117,7 +144,54 @@ export class InputManager {
       // Release any buttons that are being held when input is disabled
       this.fireHeld = false;
       this.adsHeld = false;
+      this.touchMoveX = 0;
+      this.touchMoveZ = 0;
     }
+  }
+
+  /**
+   * Sets the analog movement vector from the on-screen joystick.
+   * x: right positive, z: backward positive (same convention as getMovementVector).
+   * While non-zero it takes priority over keyboard flags; desktop is unaffected.
+   */
+  public setTouchMoveVector(x: number, z: number): void {
+    const len = Math.hypot(x, z);
+    if (len > 1) {
+      x /= len;
+      z /= len;
+    }
+    this.touchMoveX = x;
+    this.touchMoveZ = z;
+  }
+
+  /**
+   * Adds camera-look deltas from touch drag (already gain-adjusted).
+   * They join the same per-frame pool the mouse path drains from, so
+   * sensitivity, the ADS multiplier, and pitch clamping all apply unchanged.
+   */
+  public addTouchLookDelta(deltaX: number, deltaY: number): void {
+    if (!this.inputEnabled) return;
+    this.mouseDeltaX += deltaX;
+    this.mouseDeltaY += deltaY;
+  }
+
+  /**
+   * Virtual fire button state from touch controls. Drives the same
+   * fireHeld/firePressed pipeline as the left mouse button (edge + hold).
+   */
+  public setVirtualFire(held: boolean): void {
+    if (!this.inputEnabled) return;
+    if (held) {
+      this.fireHeld = true;
+      this.firePressed = true;
+    } else {
+      this.fireHeld = false;
+    }
+  }
+
+  /** Virtual aim-down-sights state from touch controls (same path as right mouse). */
+  public setVirtualADS(active: boolean): void {
+    this.adsHeld = active && this.inputEnabled;
   }
 
   public onLockChange(callback: LockChangeCallback): () => void {
@@ -161,6 +235,11 @@ export class InputManager {
   }
 
   public getMovementVector(): { x: number; z: number } {
+    // Active analog stick overrides digital keyboard input (mobile joystick)
+    if (this.touchMoveX !== 0 || this.touchMoveZ !== 0) {
+      return { x: this.touchMoveX, z: this.touchMoveZ };
+    }
+
     let x = 0;
     let z = 0;
 
@@ -226,6 +305,17 @@ export class InputManager {
       target?.tagName === 'INPUT' ||
       target?.closest?.('button')
     ) {
+      return;
+    }
+
+    // Ignore synthetic mouse events generated by touch-control gestures
+    if (target?.closest?.('#touch-controls')) {
+      return;
+    }
+
+    // Ignore compatibility mouse events synthesized from touch input
+    // (explicit flag on Chrome/Edge; recency fallback for Safari/Firefox)
+    if (isTouchSynthesized(e) || performance.now() - this.lastTouchPointerDownAt < 500) {
       return;
     }
 

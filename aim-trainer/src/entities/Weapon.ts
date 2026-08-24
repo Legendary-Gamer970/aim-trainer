@@ -43,15 +43,15 @@ export class Weapon {
 
   // Scope assembly (housing + lenses + reticle dot). Retracted as ADS completes
   // so the solid housing caps never block the magnified view inside the optic.
-  public scopeAssembly: THREE.Group;
+  public scopeAssembly!: THREE.Group;
 
   // Muzzle smoke particles (pooled)
   private smokeParticles: { mesh: THREE.Mesh; velocity: THREE.Vector3; life: number; maxLife: number; active: boolean }[] = [];
 
-  // Ammo & Reload state
+  // Ammo & Reload state (infinite reserve: reload never depletes it)
   public magAmmo: number = 30;
   public readonly maxMagAmmo: number = 30;
-  public reserveAmmo: number = 120;
+  public reserveAmmo: number = Infinity;
   public isReloading: boolean = false;
   private reloadTime: number = 0;
   private readonly reloadDuration: number = 1.6; // 1.6 seconds reload
@@ -550,7 +550,7 @@ export class Weapon {
 
   public reset(): void {
     this.magAmmo = this.maxMagAmmo;
-    this.reserveAmmo = 120;
+    this.reserveAmmo = Infinity;
     this.isReloading = false;
     this.reloadTime = 0;
     this.recoilZ = 0;
